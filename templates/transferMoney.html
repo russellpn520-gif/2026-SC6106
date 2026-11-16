@@ -96,7 +96,7 @@
                     if (!/^\d+$/.test(amount) || BigInt(amount) >= 2n ** 256n) {
                         throw new Error('Enter a whole amount within the uint256 range.');
                     }
-                    const [account] = await web3.eth.requestAccounts();
+                    const [account] = await Web3.givenProvider.request({ method: 'eth_requestAccounts' });
                     if (!account) throw new Error('Choose an account in MetaMask.');
                     statusOutput.textContent = 'Confirm the record update in MetaMask.';
                     await contract.methods.transfer(payer, payee, amount).send({ from: account, value: '0' });

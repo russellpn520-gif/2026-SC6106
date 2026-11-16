@@ -1,0 +1,125 @@
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+
+<body>
+    <div class="container">
+        <h2>Transfer Money</h2>
+        <input type="text" id="payer" placeholder="Enter payer address" aria-label="Payer address">
+        <input type="text" id="payee" placeholder="Enter payee address" aria-label="Payee address">
+        <input type="number" id="amount" placeholder="Enter amount" aria-label="Amount to transfer">
+        <button class="btn" type="button" id="transfer-button" onclick="transfer()">Transfer</button>
+        <button class="btn" type="button" onclick="transaction()">transaction</button>
+        <form action="/main" method="post">
+            <input type="submit" value="Main">
+        </form>
+        <p id="status" role="status"></p>
+        <p id="view_payer"></p>
+        <p id="view_payee"></p>
+        <p id="view_amount"></p>
+        <script src="https://cdn.jsdelivr.net/npm/web3@1.5.2/dist/web3.min.js"></script>
+        <script>
+            const contractAddress = {{ contract_address | tojson }};
+            const contractABI = [
+                {
+                    "inputs": [
+                        {
+                            "name": "_payer",
+                            "type": "address"
+                        },
+                        {
+                            "name": "_payee",
+                            "type": "address"
+                        },
+                        {
+                            "name": "_amount",
+                            "type": "uint256"
+                        }
+                    ],
+                    "name": "transfer",
+                    "outputs": [],
+                    "stateMutability": "nonpayable",
+                    "type": "function"
+                },
+                {
+                    "inputs": [],
+                    "name": "transaction",
+                    "outputs": [
+                        {
+                            "name": "",
+                            "type": "address"
+                        },
+                        {
+                            "name": "",
+                            "type": "address"
+                        },
+                        {
+                            "name": "",
+                            "type": "uint256"
+                        }
+                    ],
+                    "stateMutability": "view",
+                    "type": "function"
+                }
+            ];
+            const statusOutput = document.getElementById('status');
+
+            async function getPayNow() {
+                if (typeof Web3 === 'undefined' || !Web3.givenProvider) {
+                    throw new Error('Open this page in a browser with MetaMask.');
+                }
+                if (!Web3.utils.isAddress(contractAddress) || /^0x0{40}$/i.test(contractAddress)) {
+                    throw new Error('No Sepolia contract address is configured.');
+                }
+                const web3 = new Web3(Web3.givenProvider);
+                if (await web3.eth.getChainId() !== 11155111) {
+                    throw new Error('Switch MetaMask to Sepolia.');
+                }
+                if (await web3.eth.getCode(contractAddress) === '0x') {
+                    throw new Error('Contract not found on Sepolia.');
+                }
+                return { web3, contract: new web3.eth.Contract(contractABI, contractAddress) };
+            }
+
+            async function transfer() {
+                const button = document.getElementById('transfer-button');
+                button.disabled = true;
+                try {
+                    const { web3, contract } = await getPayNow();
+                    const payer = document.getElementById('payer').value.trim();
+                    const payee = document.getElementById('payee').value.trim();
+                    const amount = document.getElementById('amount').value;
+                    if (!web3.utils.isAddress(payer) || !web3.utils.isAddress(payee)) {
+                        throw new Error('Enter valid payer and payee addresses.');
+                    }
+                    if (!/^\d+$/.test(amount) || BigInt(amount) >= 2n ** 256n) {
+                        throw new Error('Enter a whole amount within the uint256 range.');
+                    }
+                    const [account] = await web3.eth.requestAccounts();
+                    if (!account) throw new Error('Choose an account in MetaMask.');
+                    statusOutput.textContent = 'Confirm the record update in MetaMask.';
+                    await contract.methods.transfer(payer, payee, amount).send({ from: account, value: '0' });
+                    statusOutput.textContent = 'Record saved on Sepolia.';
+                } catch (error) {
+                    statusOutput.textContent = error.message;
+                } finally {
+                    button.disabled = false;
+                }
+            }
+
+            async function transaction() {
+                try {
+                    const { contract } = await getPayNow();
+                    const result = await contract.methods.transaction().call();
+                    document.getElementById('view_payer').textContent = 'Payer: ' + result[0];
+                    document.getElementById('view_payee').textContent = 'Payee: ' + result[1];
+                    document.getElementById('view_amount').textContent = 'Amount: ' + result[2];
+                    statusOutput.textContent = '';
+                } catch (error) {
+                    statusOutput.textContent = error.message;
+                }
+            }
+        </script>
+    </div>
+</body>
